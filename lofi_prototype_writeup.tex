@@ -1,0 +1,83 @@
+\documentclass[10pt, letterpaper]{article}
+
+% ---- Packages ----
+\usepackage[margin=0.6in, top=0.5in, bottom=0.5in]{geometry}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{parskip}
+
+% ---- Compact Formatting ----
+\titleformat{\section}{\normalsize\bfseries\color{black}}{}{0em}{}[\titlerule]
+\titlespacing{\section}{0pt}{6pt}{3pt}
+\titleformat{\subsection}{\small\bfseries}{}{0em}{}
+\titlespacing{\subsection}{0pt}{4pt}{2pt}
+\setlength{\parskip}{3pt}
+\pagestyle{empty}
+
+% ---- Document ----
+\begin{document}
+
+\begin{center}
+    {\large\bfseries GlowAI --- Lo-Fi Prototype Write-up}\\[3pt]
+    {\small Assignment 4a \quad|\quad Zhexi Zhu (\texttt{zhexizhu}), Huanchen Jia (\texttt{jhuanch}), Kunlong Zhang (\texttt{kunlong})}
+\end{center}
+
+\vspace{-4pt}
+
+\section{Prototype Overview}
+
+Our lo-fi prototype implements GlowAI's complete user journey as a four-step wizard (Landing $\rightarrow$ Upload $\rightarrow$ Generate $\rightarrow$ Fine-tune) built with Next.js, TypeScript, and Tailwind CSS. It connects to a real AI backend (Replicate API / SEEDREAM-4), allowing users to upload a selfie, receive 8 AI-generated makeup looks, and fine-tune a selected look with sliders and color pickers before downloading.
+
+\section{Requirements Satisfied in the Lo-Fi Prototype}
+
+\small
+\begin{tabularx}{\textwidth}{p{0.9cm} p{3.5cm} p{1.1cm} X}
+\toprule
+\textbf{ID} & \textbf{Requirement} & \textbf{Status} & \textbf{How It Is Addressed} \\
+\midrule
+UR-01 & Generate multiple distinct makeup looks & \textcolor{green!50!black}{\textbf{Met}} & Generates 8 distinct styles (Natural Glow, Smoky Evening, Soft Glam, etc.) from one selfie via the Replicate API. \\
+\addlinespace
+UR-02 & Match user's skin tone and features & \textcolor{green!50!black}{\textbf{Met}} & Identity-preserving prompts ensure the AI retains the user's facial structure, skin tone, and features in all outputs. \\
+\addlinespace
+UR-04 & Usable by makeup beginners & \textcolor{green!50!black}{\textbf{Met}} & Step-by-step wizard with clear progress indicator; drag-and-drop upload; no makeup knowledge required. \\
+\addlinespace
+UR-05 & Privacy --- no image retention & \textcolor{green!50!black}{\textbf{Met}} & Images are processed in-memory only; no server-side storage; session-ephemeral design. \\
+\addlinespace
+UR-07 & Compare looks side by side & \textcolor{green!50!black}{\textbf{Met}} & 4-column responsive style grid for simultaneous comparison; before/after toggle in fine-tune view. \\
+\addlinespace
+UR-08 & Cross-device/browser support & \textcolor{green!50!black}{\textbf{Met}} & Mobile-first responsive layout (2/3/4-column grid); tested on Chrome, Safari, Firefox. \\
+\addlinespace
+UR-03 & Results within 15 seconds & \textcolor{orange!80!black}{\textbf{Partial}} & Current generation takes 30--60s due to API latency. Progressive loading UI keeps users engaged. \\
+\addlinespace
+UR-06 & Occasion/style selector & \textcolor{orange!80!black}{\textbf{Partial}} & 8 predefined style categories cover key occasions; explicit occasion input selector not yet added. \\
+\addlinespace
+UR-10 & Save and revisit favorites & \textcolor{red!70!black}{\textbf{Not yet}} & Download and share are implemented, but persistent save/favorites across sessions is not. \\
+\addlinespace
+UR-09 & Equitable across skin tones & \textcolor{orange!80!black}{\textbf{Partial}} & Model handles diverse inputs, but formal disaggregated evaluation not yet conducted. \\
+\bottomrule
+\end{tabularx}
+
+\section{Plan to Transform Lo-Fi Prototype into Final Project}
+
+\subsection{Missing Features to Implement}
+\begin{itemize}[leftmargin=*, nosep, topsep=2pt]
+    \item \textbf{Occasion/Style Selector (UR-06):} Add an explicit occasion input (casual, professional, party, wedding) before generation to guide style output.
+    \item \textbf{Save \& Favorites System (UR-10):} Implement browser-based local storage (or optional account system) so users can bookmark and revisit preferred looks across sessions.
+    \item \textbf{Real Face Detection:} Replace the simulated face detection (currently a 2-second delay with a hardcoded 98\% confidence badge) with a real client-side face detection library (e.g., MediaPipe Face Detection) for validation and landmark extraction.
+    \item \textbf{Stretch Goal --- Intensity Slider:} Enhance the existing fine-tune sliders to directly modulate the AI prompt's makeup intensity on a natural-to-dramatic spectrum.
+\end{itemize}
+
+\subsection{Refinements Needed}
+\begin{itemize}[leftmargin=*, nosep, topsep=2pt]
+    \item \textbf{Performance Optimization (UR-03):} Implement parallel generation with progressive rendering (show each look as it completes), caching of generated images, and explore model quantization to reduce the 30--60s latency toward the 15s target.
+    \item \textbf{Skin Tone Equity Audit (UR-09):} Conduct a formal evaluation across Fitzpatrick types I--VI with disaggregated satisfaction metrics before final release.
+    \item \textbf{Internationalization:} The codebase already includes bilingual style names (English/Chinese); wire up a proper i18n framework for full multi-language support.
+    \item \textbf{Accessibility:} Add ARIA labels, keyboard navigation for the style grid, and screen reader support for all interactive elements.
+    \item \textbf{Error Handling \& Edge Cases:} Improve graceful degradation for API failures, unsupported image formats, and poor lighting conditions in uploaded photos.
+\end{itemize}
+
+\end{document}
