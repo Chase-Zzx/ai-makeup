@@ -1,101 +1,240 @@
-import Image from "next/image";
+'use client';
+
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { pageTransition } from '@/styles/animations';
+import { useAppStore } from '@/stores/appStore';
+import { generateAllStyles } from '@/lib/apiService';
+
+import HeroSection from '@/components/landing/HeroSection';
+import StickyShowcase from '@/components/landing/StickyShowcase';
+import BottomCTA from '@/components/landing/BottomCTA';
+import StepIndicator from '@/components/ui/StepIndicator';
+import DropZone from '@/components/upload/DropZone';
+import FacePreview from '@/components/upload/FacePreview';
+import GeneratingLoader from '@/components/generate/GeneratingLoader';
+import StyleGrid from '@/components/generate/StyleGrid';
+import CanvasPreview from '@/components/finetune/CanvasPreview';
+import FineTunePanel from '@/components/finetune/FineTunePanel';
+
+function LandingStep() {
+  return (
+    <div key="landing">
+      <HeroSection />
+      <StickyShowcase />
+      <BottomCTA />
+    </div>
+  );
+}
+
+function UploadStep() {
+  const uploadedImage = useAppStore((s) => s.uploadedImage);
+  const setStep = useAppStore((s) => s.setStep);
+  const setUploadedImage = useAppStore((s) => s.setUploadedImage);
+  const setFaceDetected = useAppStore((s) => s.setFaceDetected);
+
+  const handleBack = () => {
+    setUploadedImage(null, null);
+    setFaceDetected(false);
+    setStep('landing');
+  };
+
+  return (
+    <motion.div key="upload" {...pageTransition} className="min-h-screen flex flex-col">
+      <header className="flex items-center justify-between px-6 py-4">
+        <button onClick={handleBack} className="text-fg-muted hover:text-fg transition-colors flex items-center gap-2 text-sm">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M19 12H5" />
+            <path d="M12 19l-7-7 7-7" />
+          </svg>
+          Back
+        </button>
+        <StepIndicator />
+        <div className="w-16" />
+      </header>
+
+      <div className="flex-1 flex items-center justify-center px-6 pb-12">
+        <div className="w-full max-w-lg">
+          <h2 className="text-2xl font-semibold text-center mb-8 tracking-[-0.02em]">
+            Upload Your Selfie
+          </h2>
+          <AnimatePresence mode="wait">
+            {!uploadedImage ? (
+              <motion.div key="dropzone" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
+                <DropZone />
+              </motion.div>
+            ) : (
+              <motion.div key="preview" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
+                <FacePreview />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function GenerateStep() {
+  const setStep = useAppStore((s) => s.setStep);
+  const uploadedFile = useAppStore((s) => s.uploadedFile);
+  const isGenerating = useAppStore((s) => s.isGenerating);
+  const generatedStyles = useAppStore((s) => s.generatedStyles);
+  const setGenerating = useAppStore((s) => s.setGenerating);
+  const setGenerationProgress = useAppStore((s) => s.setGenerationProgress);
+  const setGeneratedStyles = useAppStore((s) => s.setGeneratedStyles);
+  const [error, setError] = useState<string | null>(null);
+  const isRunningRef = useRef(false);
+
+  const runGeneration = useCallback(async () => {
+    if (!uploadedFile || generatedStyles.length > 0 || isRunningRef.current) return;
+    isRunningRef.current = true;
+
+    setError(null);
+    setGenerating(true);
+    setGenerationProgress({ stage: 1, message: 'Preparing your image...' });
+
+    try {
+      const styles = await generateAllStyles({
+        imageFile: uploadedFile,
+        onProgress: (message) => {
+          setGenerationProgress({ stage: 2, message });
+        },
+      });
+      setGeneratedStyles(styles);
+    } catch (err) {
+      console.error('Style generation failed:', err);
+      setError(err instanceof Error ? err.message : 'Generation failed. Please try again.');
+    } finally {
+      setGenerating(false);
+      setGenerationProgress(null);
+      isRunningRef.current = false;
+    }
+  }, [uploadedFile, generatedStyles.length, setGenerating, setGenerationProgress, setGeneratedStyles]);
+
+  useEffect(() => {
+    runGeneration();
+  }, [runGeneration]);
+
+  const handleRetry = () => {
+    setGeneratedStyles([]);
+    setError(null);
+  };
+
+  const handleBack = () => {
+    setStep('upload');
+    setGeneratedStyles([]);
+    setGenerating(false);
+    setGenerationProgress(null);
+  };
+
+  return (
+    <motion.div key="generate" {...pageTransition} className="min-h-screen flex flex-col">
+      <header className="flex items-center justify-between px-6 py-4">
+        <button onClick={handleBack} className="text-fg-muted hover:text-fg transition-colors flex items-center gap-2 text-sm">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M19 12H5" />
+            <path d="M12 19l-7-7 7-7" />
+          </svg>
+          Back
+        </button>
+        <StepIndicator />
+        <div className="w-16" />
+      </header>
+
+      <div className="flex-1 px-6 pb-12">
+        <div className="max-w-6xl mx-auto">
+          <AnimatePresence mode="wait">
+            {isGenerating ? (
+              <GeneratingLoader key="loader" />
+            ) : error ? (
+              <motion.div
+                key="error"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="flex items-center justify-center min-h-[60vh]"
+              >
+                <div className="flex flex-col items-center gap-6 max-w-md text-center">
+                  <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="15" y1="9" x2="9" y2="15" />
+                      <line x1="9" y1="9" x2="15" y2="15" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-fg mb-2">Generation Failed</h3>
+                    <p className="text-sm text-fg-muted leading-relaxed">{error}</p>
+                  </div>
+                  <button
+                    onClick={handleRetry}
+                    className="px-6 py-2.5 bg-accent text-white text-sm font-medium rounded-full hover:bg-accent/90 transition-colors"
+                  >
+                    Try Again
+                  </button>
+                </div>
+              </motion.div>
+            ) : generatedStyles.length > 0 ? (
+              <motion.div
+                key="grid"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2 }}
+              >
+                <StyleGrid />
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function FinetuneStep() {
+  const setStep = useAppStore((s) => s.setStep);
+  const selectedStyle = useAppStore((s) => s.selectedStyle);
+
+  const handleBack = () => {
+    setStep('generate');
+  };
+
+  if (!selectedStyle) return null;
+
+  return (
+    <motion.div key="finetune" {...pageTransition} className="min-h-screen flex flex-col">
+      <header className="flex items-center justify-between px-6 py-4">
+        <button onClick={handleBack} className="text-fg-muted hover:text-fg transition-colors flex items-center gap-2 text-sm">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M19 12H5" />
+            <path d="M12 19l-7-7 7-7" />
+          </svg>
+          Back
+        </button>
+        <StepIndicator />
+        <div className="w-16" />
+      </header>
+
+      <div className="flex-1 flex flex-col lg:flex-row gap-6 px-6 pb-6 overflow-hidden">
+        <CanvasPreview />
+        <FineTunePanel />
+      </div>
+    </motion.div>
+  );
+}
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const currentStep = useAppStore((s) => s.currentStep);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+  return (
+    <main className="min-h-screen">
+      <AnimatePresence mode="wait">
+        {currentStep === 'landing' && <LandingStep />}
+        {currentStep === 'upload' && <UploadStep />}
+        {currentStep === 'generate' && <GenerateStep />}
+        {currentStep === 'finetune' && <FinetuneStep />}
+      </AnimatePresence>
+    </main>
   );
 }
