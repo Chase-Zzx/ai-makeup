@@ -30,11 +30,15 @@ export default function AuthModal() {
 
     try {
       if (tab === 'register') {
-        const { error: signUpError } = await supabase.auth.signUp({
-          email,
-          password,
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
         });
-        if (signUpError) throw signUpError;
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: 'Registration failed' }));
+          throw new Error(err.error);
+        }
       }
 
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
@@ -47,6 +51,15 @@ export default function AuthModal() {
         setCurrentUser({ id: data.user.id, email: data.user.email! });
         const action = pendingAction;
         closeAuthModal();
+        // Scroll to the bottom CTA section after login
+        setTimeout(() => {
+          const cta = document.getElementById('bottom-cta');
+          if (cta) {
+            cta.scrollIntoView({ behavior: 'smooth' });
+          } else {
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+          }
+        }, 100);
 
         // Execute pending action after login
         if (action === 'history') {

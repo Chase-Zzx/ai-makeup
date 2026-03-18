@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { motion } from 'framer-motion';
 import { slideFromRight } from '@/styles/animations';
 import { useAppStore } from '@/stores/appStore';
@@ -51,15 +50,23 @@ export default function FineTunePanel() {
     setSaveMessage(null);
 
     try {
-      const supabase = createClient();
       const generationId = crypto.randomUUID();
 
-      // Upload original image directly to Storage
+      // Convert original file to base64 for server-side upload
       const originalPath = `${user.id}/${generationId}-original.jpg`;
-      const { error: origError } = await supabase.storage
-        .from('makeup-images')
-        .upload(originalPath, file, { contentType: file.type, upsert: false });
-      if (origError) throw new Error(`Original upload failed: ${origError.message}`);
+      const arrayBuffer = await file.arrayBuffer();
+      const base64Data = btoa(
+        new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+      );
+      const origRes = await fetch('/api/download-and-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ base64Data, storagePath: originalPath, contentType: file.type }),
+      });
+      if (!origRes.ok) {
+        const err = await origRes.json().catch(() => ({ error: 'Upload failed' }));
+        throw new Error(`Original upload failed: ${err.error}`);
+      }
 
       // Upload generated image via server relay
       const generatedPath = `${user.id}/${generationId}-result.jpg`;

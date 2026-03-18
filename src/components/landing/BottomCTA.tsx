@@ -10,7 +10,7 @@ export default function BottomCTA() {
   const inView = useInView(ref, { once: true, margin: '-80px' });
 
   return (
-    <section ref={ref} className="py-32 px-6 relative overflow-hidden">
+    <section id="bottom-cta" ref={ref} className="py-32 px-6 relative overflow-hidden">
       {/* Animated mesh background */}
       <div className="absolute inset-0 mesh-bg" />
 

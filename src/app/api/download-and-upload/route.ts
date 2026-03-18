@@ -11,9 +11,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { sourceUrl, storagePath } = await request.json();
-    if (!sourceUrl || !storagePath) {
-      return NextResponse.json({ error: 'Missing sourceUrl or storagePath' }, { status: 400 });
+    const { sourceUrl, storagePath, base64Data, contentType: providedContentType } = await request.json();
+    if (!storagePath) {
+      return NextResponse.json({ error: 'Missing storagePath' }, { status: 400 });
+    }
+    if (!sourceUrl && !base64Data) {
+      return NextResponse.json({ error: 'Missing sourceUrl or base64Data' }, { status: 400 });
     }
 
     // Verify the storage path starts with user's own folder
@@ -21,14 +24,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Fetch the image from the source URL
-    const imageResponse = await fetch(sourceUrl);
-    if (!imageResponse.ok) {
-      return NextResponse.json({ error: 'Failed to fetch source image' }, { status: 502 });
-    }
+    let imageBuffer: ArrayBuffer;
+    let contentType: string;
 
-    const imageBuffer = await imageResponse.arrayBuffer();
-    const contentType = imageResponse.headers.get('content-type') || 'image/png';
+    if (base64Data) {
+      // Handle direct base64 upload (for original images from browser)
+      const buffer = Buffer.from(base64Data, 'base64');
+      imageBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+      contentType = providedContentType || 'image/jpeg';
+    } else {
+      // Fetch the image from the source URL
+      const imageResponse = await fetch(sourceUrl);
+      if (!imageResponse.ok) {
+        return NextResponse.json({ error: 'Failed to fetch source image' }, { status: 502 });
+      }
+      imageBuffer = await imageResponse.arrayBuffer();
+      contentType = imageResponse.headers.get('content-type') || 'image/png';
+    }
 
     // Upload using service role client (bypasses RLS for storage)
     const serviceClient = createClient(
