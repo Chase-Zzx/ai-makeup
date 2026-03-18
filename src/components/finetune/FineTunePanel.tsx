@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
 import { motion } from 'framer-motion';
 import { slideFromRight } from '@/styles/animations';
 import { useAppStore } from '@/stores/appStore';
@@ -33,6 +34,88 @@ export default function FineTunePanel() {
   const setAiGenerationStatus = useAppStore((s) => s.setAiGenerationStatus);
   const setAiGenerationMessage = useAppStore((s) => s.setAiGenerationMessage);
   const setAiError = useAppStore((s) => s.setAiError);
+  const currentUser = useAppStore((s) => s.currentUser);
+  const openAuthModal = useAppStore((s) => s.openAuthModal);
+  const fromHistory = useAppStore((s) => s.fromHistory);
+
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [pendingSave, setPendingSave] = useState(false);
+
+  const doSave = useCallback(async () => {
+    // Read fresh state from store to avoid stale closures after auth
+    const { currentUser: user, uploadedFile: file, aiImageUrl: imageUrl, selectedStyle: style, makeupParams: params } = useAppStore.getState();
+    if (!imageUrl || !style || !file || !user) return;
+
+    setIsSaving(true);
+    setSaveMessage(null);
+
+    try {
+      const supabase = createClient();
+      const generationId = crypto.randomUUID();
+
+      // Upload original image directly to Storage
+      const originalPath = `${user.id}/${generationId}-original.jpg`;
+      const { error: origError } = await supabase.storage
+        .from('makeup-images')
+        .upload(originalPath, file, { contentType: file.type, upsert: false });
+      if (origError) throw new Error(`Original upload failed: ${origError.message}`);
+
+      // Upload generated image via server relay
+      const generatedPath = `${user.id}/${generationId}-result.jpg`;
+      const relayRes = await fetch('/api/download-and-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceUrl: imageUrl, storagePath: generatedPath }),
+      });
+      if (!relayRes.ok) {
+        const err = await relayRes.json().catch(() => ({ error: 'Upload failed' }));
+        throw new Error(err.error);
+      }
+
+      // Save DB record
+      const saveRes = await fetch('/api/save-result', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: generationId,
+          originalImagePath: originalPath,
+          generatedImagePath: generatedPath,
+          styleName: style.name,
+          makeupParams: params,
+        }),
+      });
+      if (!saveRes.ok) {
+        const err = await saveRes.json().catch(() => ({ error: 'Save failed' }));
+        throw new Error(err.error);
+      }
+
+      setSaveMessage('Saved!');
+      setTimeout(() => setSaveMessage(null), 3000);
+    } catch (err) {
+      setSaveMessage(err instanceof Error ? err.message : 'Save failed');
+      setTimeout(() => setSaveMessage(null), 5000);
+    } finally {
+      setIsSaving(false);
+      setPendingSave(false);
+    }
+  }, []);
+
+  // Watch for auth completion when save was pending
+  useEffect(() => {
+    if (pendingSave && currentUser) {
+      doSave();
+    }
+  }, [pendingSave, currentUser, doSave]);
+
+  const handleSaveClick = useCallback(() => {
+    if (!currentUser) {
+      setPendingSave(true);
+      openAuthModal('save');
+    } else {
+      doSave();
+    }
+  }, [currentUser, openAuthModal, doSave]);
 
   const handleRegenerate = useCallback(async () => {
     if (!uploadedFile || !selectedStyle) return;
@@ -194,7 +277,7 @@ export default function FineTunePanel() {
             type="button"
             className="btn-secondary flex-1 flex items-center justify-center gap-2"
             onClick={handleRegenerate}
-            disabled={isRegenerating}
+            disabled={isRegenerating || fromHistory}
           >
             {isRegenerating ? (
               <>
@@ -212,6 +295,33 @@ export default function FineTunePanel() {
           </button>
         </div>
         <ExportActions onDownload={handleDownload} />
+        {/* Save to account */}
+        {aiImageUrl && !fromHistory && (
+          <button
+            type="button"
+            className="btn-primary w-full flex items-center justify-center gap-2 mt-2"
+            onClick={handleSaveClick}
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Saving...
+              </>
+            ) : saveMessage ? (
+              saveMessage
+            ) : (
+              <>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
+                  <polyline points="17 21 17 13 7 13 7 21" />
+                  <polyline points="7 3 7 8 15 8" />
+                </svg>
+                Save to Account
+              </>
+            )}
+          </button>
+        )}
       </div>
     </motion.div>
   );
