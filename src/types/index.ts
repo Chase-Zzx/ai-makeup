@@ -46,3 +46,23 @@ export interface GenerationProgress {
   totalStages: number;
   message: string;
 }
+
+export interface GenerationHistoryRecord {
+  id: string;
+  user_id: string;
+  original_image_path: string;
+  generated_image_path: string;
+  style_name: string;
+  makeup_params: MakeupParams;
+  created_at: string;
+  is_favorite?: boolean;
+}
+
+export interface UserFavorite {
+  id: string;
+  user_id: string;
+  history_id: string;
+  created_at: string;
+}
+
+export type PendingAction = 'save' | 'history' | null;

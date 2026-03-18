@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { MakeupParams, MakeupStyle, WizardStep } from '@/types';
+import type { MakeupParams, MakeupStyle, WizardStep, PendingAction } from '@/types';
 
 const defaultParams: MakeupParams = {
   lipColor: '#C44040',
@@ -45,6 +45,20 @@ interface AppState {
   setAiGenerationStatus: (status: 'idle' | 'generating' | 'succeeded' | 'failed') => void;
   setAiGenerationMessage: (message: string | null) => void;
   setAiError: (error: string | null) => void;
+
+  // Auth
+  currentUser: { id: string; email: string } | null;
+  authModalOpen: boolean;
+  pendingAction: PendingAction;
+  setCurrentUser: (user: { id: string; email: string } | null) => void;
+  setAuthModalOpen: (open: boolean) => void;
+  setPendingAction: (action: PendingAction) => void;
+  openAuthModal: (action: PendingAction) => void;
+  closeAuthModal: () => void;
+
+  // History navigation
+  fromHistory: boolean;
+  setFromHistory: (val: boolean) => void;
 
   reset: () => void;
 }
@@ -99,6 +113,22 @@ export const useAppStore = create<AppState>((set) => ({
   setAiGenerationMessage: (message) => set({ aiGenerationMessage: message }),
   setAiError: (error) => set({ aiError: error }),
 
+  // Auth
+  currentUser: null,
+  authModalOpen: false,
+  pendingAction: null,
+  setCurrentUser: (user) => set({ currentUser: user }),
+  setAuthModalOpen: (open) => set({ authModalOpen: open }),
+  setPendingAction: (action) => set({ pendingAction: action }),
+  openAuthModal: (action) =>
+    set({ authModalOpen: true, pendingAction: action }),
+  closeAuthModal: () =>
+    set({ authModalOpen: false, pendingAction: null }),
+
+  // History navigation
+  fromHistory: false,
+  setFromHistory: (val) => set({ fromHistory: val }),
+
   reset: () =>
     set({
       currentStep: 'landing',
@@ -115,5 +145,8 @@ export const useAppStore = create<AppState>((set) => ({
       aiGenerationStatus: 'idle',
       aiGenerationMessage: null,
       aiError: null,
+      authModalOpen: false,
+      pendingAction: null,
+      fromHistory: false,
     }),
 }));
