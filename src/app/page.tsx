@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { pageTransition } from '@/styles/animations';
 import { useAppStore } from '@/stores/appStore';
@@ -16,6 +17,20 @@ import GeneratingLoader from '@/components/generate/GeneratingLoader';
 import StyleGrid from '@/components/generate/StyleGrid';
 import CanvasPreview from '@/components/finetune/CanvasPreview';
 import FineTunePanel from '@/components/finetune/FineTunePanel';
+
+function AuthRequiredDetector() {
+  const searchParams = useSearchParams();
+  const openAuthModal = useAppStore((s) => s.openAuthModal);
+
+  useEffect(() => {
+    if (searchParams.get('authRequired') === 'true') {
+      openAuthModal('history');
+      window.history.replaceState({}, '', '/');
+    }
+  }, [searchParams, openAuthModal]);
+
+  return null;
+}
 
 function LandingStep() {
   return (
@@ -229,6 +244,9 @@ export default function Home() {
 
   return (
     <main className="min-h-screen">
+      <Suspense fallback={null}>
+        <AuthRequiredDetector />
+      </Suspense>
       <AnimatePresence mode="wait">
         {currentStep === 'landing' && <LandingStep />}
         {currentStep === 'upload' && <UploadStep />}
